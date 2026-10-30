@@ -3,32 +3,476 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Local Route Finder</title>
+  <meta name="theme-color" content="#0b1325">
+  <title>NextStop · Find your best way across Haldia</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <style>
-    * { box-sizing: border-box; }
-    body { margin: 0; font-family: system-ui, sans-serif; line-height: 1.5; background: #fafafa; color: #1f2933; }
-    header, main { max-width: 960px; margin: 0 auto; padding: 1.5rem 1rem 0; }
-    h1 { margin: 0; font-size: 1.75rem; }
-    .tag { margin: .25rem 0 0; color: #52606d; }
-    .start { border: 1px solid #cbd2d9; border-radius: 6px; padding: 1rem 1.25rem; background: #fff; }
+    :root { --ink:#303030; --muted:#6b7280; --line:#e5e7eb; --paper:#f3f4f6; --navy:#ffffff; --blue:#e2007a; --orange:#e47225; --success:#16a34a; --error:#dc2626; --shadow:0 5px 18px rgba(48,48,48,.07); }
+    * { box-sizing:border-box; }
+    body { margin:0; color:var(--ink); background:var(--paper); font:16px/1.5 "Google Sans","Google Sans Text",ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    button,select,input { font:inherit; } button { cursor:pointer; }
+    .app-shell { min-height:100vh; display:grid; grid-template-columns:260px minmax(0,1fr); grid-template-rows:76px minmax(0,1fr); }
+    .app-shell.nav-collapsed { grid-template-columns:260px minmax(0,1fr); }
+    .topbar { grid-column:2; grid-row:1; display:flex; align-items:center; justify-content:space-between; padding:0 32px; background:var(--navy); color:var(--ink); border-bottom:1px solid var(--line); }
+    .side-nav { grid-column:1; grid-row:1 / span 2; display:flex; flex-direction:column; align-items:flex-start; min-width:0; border-right:1px solid var(--line); background:#fff; padding:26px 26px 28px 14px; }
+    .side-nav-brand-text { margin-left:32px; color:#777; font-size:32px; font-weight:400; letter-spacing:-1.8px; line-height:1; white-space:nowrap; user-select:none; }
+    .side-nav-brand-text strong { color:#171717; font-weight:800; }
+    .nav-links { display:grid; gap:14px; width:112px; margin-top:130px; }
+    .nav-item,.nav-toggle { position:relative; display:flex; align-items:center; justify-content:flex-start; gap:14px; width:112px; min-height:70px; border:0; border-radius:38px; color:#77717f; background:transparent; padding:0 0 0 28px; text-align:left; font-size:14px; font-weight:500; }
+    .nav-item:hover,.nav-toggle:hover { color:var(--ink); background:#fafafa; }
+    .nav-item.active { min-height:70px; color:var(--blue); background:linear-gradient(90deg,#fde7f0 0 72px,transparent 72px); box-shadow:none; }
+    .nav-icon { display:grid; flex:0 0 24px; place-items:center; width:24px; height:24px; }
+    .nav-icon svg { width:19px; height:19px; fill:none; stroke:currentColor; stroke-linecap:round; stroke-linejoin:round; stroke-width:1.8; }
+    .nav-label { white-space:nowrap; }
+    .nav-signout { width:auto; margin-top:14px; border:1px solid #fecaca; border-radius:9999px; color:var(--error); background:#fff; padding:12px 20px; text-align:center; font-weight:600; }
+    .nav-signout:hover { background:#fef2f2; }
+    .nav-signout[hidden] { display:none; }
+    .nav-collapsed .nav-item { justify-content:flex-start; padding:0 0 0 28px; }
+    .nav-collapsed .nav-label { display:none; }
+    .nav-collapsed .nav-item:hover,.nav-collapsed .nav-toggle:hover,.nav-collapsed .nav-item:focus-visible,.nav-collapsed .nav-toggle:focus-visible { width:230px; justify-content:flex-start; padding-left:28px; background:transparent; }
+    .nav-collapsed .nav-item.active:hover,.nav-collapsed .nav-item.active:focus-visible { background:linear-gradient(90deg,#fde7f0 0 72px,transparent 72px); }
+    .nav-collapsed .nav-item:hover .nav-label,.nav-collapsed .nav-toggle:hover .nav-label,.nav-collapsed .nav-item:focus-visible .nav-label,.nav-collapsed .nav-toggle:focus-visible .nav-label { display:inline; color:var(--ink); }
+    .workspace,.page-dashboard,.page-profile,.page-simple { grid-column:2; grid-row:2; min-height:0; }
+    .app-page[hidden] { display:none; }
+    .page-content { height:100%; overflow:auto; padding:40px 48px 56px; }
+    .page-heading { display:flex; align-items:flex-end; justify-content:space-between; gap:24px; max-width:1100px; margin:0 auto 28px; }
+    .page-heading h1 { margin:8px 0 6px; }
+    .page-heading p { max-width:600px; margin:0; color:var(--muted); }
+    .page-heading .primary-btn { width:auto; white-space:nowrap; }
+    .dashboard-stats { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:16px; max-width:1100px; margin:0 auto 20px; }
+    .dashboard-stat,.dashboard-card,.profile-page-card { border:1px solid var(--line); border-radius:14px; background:#fff; box-shadow:var(--shadow); }
+    .dashboard-stat { padding:20px; }
+    .dashboard-stat span { display:block; color:var(--muted); font-size:13px; }
+    .dashboard-stat strong { display:block; margin-top:6px; color:var(--ink); font-size:30px; line-height:1; }
+    .dashboard-grid { display:grid; grid-template-columns:1.15fr .85fr; gap:20px; max-width:1100px; margin:0 auto; }
+    .dashboard-card { padding:24px; }
+    .dashboard-card h2 { margin:0 0 6px; font-size:20px; }
+    .dashboard-card > p { margin:0 0 18px; color:var(--muted); font-size:14px; }
+    .dashboard-route-list { display:grid; gap:10px; }
+    .dashboard-route { display:flex; align-items:center; justify-content:space-between; gap:12px; border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
+    .dashboard-route strong { display:block; font-size:14px; }
+    .dashboard-route span { display:block; color:var(--muted); font-size:12px; }
+    .dashboard-route-badge { border-radius:9999px; color:var(--blue); background:#fff0f6; padding:5px 9px; font-size:11px; font-weight:600; white-space:nowrap; }
+    .dashboard-checklist { display:grid; gap:12px; margin:0; padding:0; list-style:none; }
+    .dashboard-checklist li { display:flex; gap:10px; align-items:flex-start; color:var(--muted); font-size:14px; }
+    .dashboard-checklist li::before { content:"✓"; color:var(--success); font-weight:700; }
+    .profile-page-grid { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(280px,.9fr); gap:20px; max-width:1100px; margin:0 auto; }
+    .profile-page-card { padding:28px; }
+    .profile-page-user { display:flex; align-items:center; gap:16px; margin-bottom:22px; }
+    .profile-page-avatar { display:grid; place-items:center; width:64px; height:64px; border-radius:50%; color:#fff; background:var(--blue); font-size:22px; font-weight:700; }
+    .profile-page-user h2 { margin:0 0 4px; font-size:22px; }
+    .profile-page-user p { margin:0; color:var(--muted); font-size:14px; }
+    .profile-page-card h3 { margin:0 0 8px; font-size:18px; }
+    .profile-page-card p { color:var(--muted); font-size:14px; }
+    .profile-page-card .primary-btn { width:auto; margin-top:10px; }
+    .secondary-btn { border:1px solid var(--line); border-radius:9999px; color:var(--ink); background:#fff; padding:11px 18px; font-weight:500; }
+    .secondary-btn:hover { border-color:var(--blue); color:var(--blue); }
+    .profile-page-card[hidden] { display:none; }
+    .simple-page-card { max-width:760px; margin:0 auto; border:1px solid var(--line); border-radius:16px; background:#fff; padding:34px; box-shadow:var(--shadow); }
+    .simple-page-card h2 { margin:0 0 8px; font-size:24px; }
+    .simple-page-card p { margin:0 0 20px; color:var(--muted); }
+    .simple-page-icon { display:grid; place-items:center; width:58px; height:58px; margin-bottom:20px; border-radius:18px; color:var(--blue); background:#fde7f0; }
+    .simple-page-icon svg { width:28px; height:28px; fill:none; stroke:currentColor; stroke-linecap:round; stroke-linejoin:round; stroke-width:1.8; }
+    .brand { display:flex; align-items:center; gap:12px; }
+    .brand-mark { display:grid; place-items:center; width:42px; height:42px; overflow:hidden; border:1px solid var(--line); border-radius:10px; background:#fff; }
+    .brand-mark img { display:block; width:100%; height:100%; object-fit:cover; object-position:center; }
+    .brand-name { font-size:20px; font-weight:700; letter-spacing:0; } .brand-subtitle { color:var(--muted); font-size:14px; margin-left:8px; }
+    .top-actions { display:flex; align-items:center; gap:12px; } .live-pill { display:flex; align-items:center; gap:7px; color:var(--success); font-size:14px; }
+    .live-dot { width:7px; height:7px; border-radius:50%; background:var(--success); }
+    .top-btn { border:1px solid var(--line); border-radius:9999px; color:var(--ink); background:var(--surface,#fff); padding:10px 18px; }
+    .account-btn { display:grid; place-items:center; width:40px; height:40px; border:0; border-radius:50%; color:#fff; background:var(--blue); padding:0; font-size:14px; font-weight:700; box-shadow:none; }
+    .profile-wrap { position:relative; }
+    .profile-menu { position:absolute; top:50px; right:0; z-index:30; width:220px; border:1px solid var(--line); border-radius:8px; background:#fff; padding:8px; box-shadow:var(--shadow); }
+    .profile-menu[hidden] { display:none; }
+    .menu-user { border-bottom:1px solid var(--line); padding:9px 10px 12px; margin-bottom:5px; } .menu-user strong { display:block; font-size:14px; font-weight:500; } .menu-user span { display:block; color:var(--muted); font-size:12px; margin-top:2px; }
+    .menu-item { display:flex; align-items:center; width:100%; gap:9px; border:0; border-radius:6px; color:var(--ink); background:#fff; padding:10px; text-align:left; font-size:14px; }
+    .menu-item:hover { background:var(--paper); } .menu-item.danger { color:var(--error); }
+    .workspace { min-height:0; display:grid; grid-template-columns:420px 1fr; }
+    .sidebar { overflow:auto; border-right:1px solid var(--line); background:#fff; padding:32px; }
+    .eyebrow { color:var(--blue); font-size:14px; font-weight:500; letter-spacing:0; text-transform:none; }
+    h1 { margin:8px 0 8px; font-size:32px; line-height:38px; font-weight:700; letter-spacing:0; } .intro { color:var(--muted); margin:0 0 32px; font-size:16px; line-height:24px; }
+    .search-box { border:1px solid var(--line); border-radius:8px; background:#fff; padding:16px; box-shadow:none; }
+    .field-row { display:grid; grid-template-columns:16px 1fr 34px; align-items:center; gap:10px; } .field-row + .field-row { margin-top:8px; }
+    .stop-picker { position:relative; min-width:0; } .stop-picker:focus-within { z-index:8; }
+    .stop-options { position:absolute; top:calc(100% + 6px); left:0; right:0; z-index:12; max-height:260px; overflow:auto; border:1px solid var(--line); border-radius:12px; background:#fff; padding:6px; box-shadow:0 12px 28px rgba(25,48,75,.16); }
+    .stop-options[hidden] { display:none; }
+    .stop-option { display:block; width:100%; border:0; border-radius:8px; color:var(--ink); background:#fff; padding:10px 12px; text-align:left; }
+    .stop-option:hover,.stop-option.active { background:#fff2f8; } .stop-option strong { display:block; font-size:14px; font-weight:600; } .stop-option span,.stop-empty { display:block; color:var(--muted); font-size:12px; }
+    .stop-empty { padding:12px; }
+    .field-dot { width:10px; height:10px; border:3px solid var(--blue); border-radius:50%; } .field-dot.destination { border-color:var(--orange); border-radius:3px; }
+    select,input { width:100%; border:1px solid var(--line); border-radius:9999px; background:#fff; color:var(--ink); padding:12px 16px; outline:0; } select:focus,input:focus { border-color:var(--blue); box-shadow:0 0 0 3px rgba(226,0,122,.12); }
+    .swap-btn { width:32px; height:32px; border:1px solid var(--line); border-radius:50%; background:#fff; color:var(--ink); font-size:16px; }
+    .mode-tabs { display:grid; grid-template-columns:repeat(3,1fr); gap:4px; margin:20px 0 16px; padding:4px; border-radius:9999px; background:var(--paper); }
+    .mode-btn { border:0; border-radius:9999px; color:var(--muted); background:transparent; padding:10px 4px; font-size:14px; font-weight:500; } .mode-btn.active { color:#fff; background:var(--blue); box-shadow:none; }
+    .primary-btn { width:100%; border:0; border-radius:9999px; color:#fff; background:var(--blue); padding:12px 20px; font-weight:500; box-shadow:none; } .primary-btn:hover,.account-submit:hover { background:#c8006d; }
+    .quick-row { display:flex; align-items:center; justify-content:space-between; gap:10px; margin:32px 0 16px; } .section-title { color:var(--ink); font-size:16px; font-weight:500; letter-spacing:0; text-transform:none; }
+    .delay-btn { border:1px solid var(--line); border-radius:9999px; color:var(--orange); background:#fff; padding:8px 12px; font-size:12px; font-weight:500; } .delay-btn.active { color:#fff; border-color:var(--orange); background:var(--orange); }
+    .alert { display:none; margin:16px 0; border:1px solid #fecaca; border-radius:8px; color:var(--error); background:#fef2f2; padding:12px 16px; font-size:14px; } .alert.show { display:block; }
+    #routeList { display:grid; gap:12px; } .route-card { position:relative; border:1px solid var(--line); border-radius:8px; background:#fff; padding:16px; transition:.18s ease; }
+    .route-card:hover,.route-card.selected { border-color:var(--blue); box-shadow:var(--shadow); transform:none; } .route-card.recommended { border-color:var(--blue); }
+    .recommended-label { position:absolute; top:-10px; left:16px; border-radius:9999px; color:#fff; background:var(--blue); padding:4px 9px; font-size:12px; font-weight:500; text-transform:none; letter-spacing:0; }
+    .route-card-head { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; } .route-title { margin:0; font-size:18px; line-height:27px; font-weight:500; } .route-subtitle { color:var(--muted); font-size:14px; }
+    .route-metrics { display:flex; align-items:baseline; gap:10px; margin:16px 0 10px; } .route-time { font-size:24px; font-weight:700; letter-spacing:0; } .route-fare { color:var(--ink); font-weight:500; } .route-transfer { color:var(--muted); font-size:14px; }
+    .departure-strip { display:flex; align-items:center; gap:10px; margin:12px 0 10px; border:1px solid #f4c9dc; border-radius:8px; background:#fff7fb; padding:10px 12px; } .departure-icon { display:grid; place-items:center; width:28px; height:28px; border-radius:50%; color:#fff; background:var(--blue); font-size:16px; } .departure-copy { min-width:0; flex:1; } .departure-copy strong { display:block; color:var(--ink); font-size:14px; font-weight:700; } .departure-copy span { display:block; overflow:hidden; color:var(--muted); font-size:12px; text-overflow:ellipsis; white-space:nowrap; } .departure-wait { color:var(--blue); font-size:13px; font-weight:700; white-space:nowrap; } .departure-upcoming { display:flex; align-items:center; gap:6px; margin:0 0 12px 40px; color:var(--muted); font-size:11px; } .departure-upcoming span { border:1px solid var(--line); border-radius:9999px; background:#fff; padding:3px 7px; }
+    .route-line { display:flex; align-items:center; gap:6px; flex-wrap:wrap; } .mode-chip { display:inline-flex; align-items:center; gap:5px; border-radius:9999px; color:var(--muted); background:#eef2ff; padding:6px 10px; font-size:12px; font-weight:400; }
+    .mode-dot { width:7px; height:7px; border-radius:50%; background:var(--chip-color,var(--blue)); } .view-btn { margin-top:16px; border:0; color:var(--ink); background:transparent; padding:0; font-size:14px; font-weight:400; text-decoration:underline; text-underline-offset:3px; }
+    .details { display:none; margin-top:16px; border-top:1px solid var(--line); padding-top:12px; } .route-card.selected .details { display:block; } .timeline { display:grid; gap:0; }
+    .timeline-row { position:relative; display:grid; grid-template-columns:20px 1fr auto; gap:8px; align-items:center; padding:8px 0; } .timeline-row:not(:last-child)::before { position:absolute; top:20px; left:8px; width:2px; height:28px; content:""; background:var(--line); }
+    .timeline-dot { z-index:1; width:16px; height:16px; border:4px solid #fff; border-radius:50%; background:var(--blue); box-shadow:0 0 0 1px var(--line); } .timeline-copy strong { display:block; font-size:14px; font-weight:500; } .timeline-copy span,.timeline-time { color:var(--muted); font-size:12px; } .timeline-time { white-space:nowrap; }
+    .empty-state { border:1px dashed #d1d5db; border-radius:8px; color:var(--muted); background:#fff; padding:32px 16px; text-align:center; } .empty-state strong { display:block; color:var(--ink); margin-bottom:4px; font-size:16px; font-weight:500; }
+    .map-panel { position:relative; overflow:hidden; min-height:620px; background:var(--paper); transition:box-shadow .2s ease; } .map-panel::before { position:absolute; inset:0; opacity:.55; background-image:linear-gradient(#e5e7eb 1px,transparent 1px),linear-gradient(90deg,#e5e7eb 1px,transparent 1px); background-size:46px 46px; content:""; }
+    .map-panel::after { position:absolute; inset:-15% 35% 35% -5%; border:2px solid rgba(228,114,37,.14); border-radius:45% 55% 45% 60%; transform:rotate(17deg); content:""; }
+    .map-copy { position:absolute; top:48px; left:48px; z-index:2; pointer-events:none; } .map-copy h2 { margin:8px 0 4px; font-size:42px; line-height:52px; font-weight:700; letter-spacing:0; } .map-copy p { margin:0; color:var(--muted); font-size:18px; line-height:27px; }
+    .map-badge { display:inline-flex; align-items:center; gap:7px; border:1px solid var(--line); border-radius:9999px; color:var(--ink); background:#fff; padding:8px 12px; font-size:14px; font-weight:500; }
+    .map-controls { position:absolute; top:24px; right:24px; z-index:4; display:flex; gap:8px; }
+    .map-control-btn { display:grid; place-items:center; width:40px; height:40px; border:1px solid var(--line); border-radius:8px; color:var(--ink); background:rgba(255,255,255,.96); box-shadow:var(--shadow); font-size:19px; line-height:1; }
+    .map-control-btn:hover { color:var(--blue); border-color:var(--blue); }
+    .map-control-btn:focus-visible { outline:3px solid rgba(226,0,122,.22); outline-offset:2px; }
+    .map-panel.map-fullscreen { position:fixed; inset:16px; z-index:50; min-height:0; border:1px solid var(--line); border-radius:12px; box-shadow:0 20px 70px rgba(48,48,48,.24); }
+    body.map-is-fullscreen { overflow:hidden; }
+    .map-panel.map-fullscreen .map-copy { top:32px; left:32px; }
+    .map-panel.map-fullscreen .map-controls { top:24px; right:24px; }
+    .leaflet-control-scale-line { border-color:var(--ink) !important; color:var(--ink) !important; background:rgba(255,255,255,.84) !important; font-size:11px; }
+    #leafletMap { position:absolute; inset:0; z-index:1; background:var(--paper); }
+    .map-panel.leaflet-active::before,.map-panel.leaflet-active::after { display:none; }
+    .leaflet-container { color:var(--ink); font:14px/1.5 "Google Sans","Google Sans Text",ui-sans-serif,system-ui,sans-serif; }
+    .leaflet-container { touch-action:none; cursor:grab; }
+    .leaflet-container:active { cursor:grabbing; }
+    .leaflet-control-zoom a { color:var(--ink) !important; border-color:var(--line) !important; background:#fff !important; }
+    .leaflet-control-attribution { color:var(--muted); background:rgba(255,255,255,.88) !important; }
+    .leaflet-popup-content-wrapper,.leaflet-popup-tip { background:#fff; box-shadow:var(--shadow); }
+    .leaflet-popup-content { margin:12px 14px; font-size:13px; }
+    .map-canvas { display:none; position:absolute; inset:0; z-index:1; max-width:850px; max-height:620px; margin:80px auto 0; } .route-stroke { position:absolute; height:5px; border-radius:99px; opacity:.56; transform-origin:left center; box-shadow:0 0 0 2px rgba(255,255,255,.75); }
+    .stroke-red { left:15%; top:28%; width:59%; background:#e2007a; transform:rotate(18deg); } .stroke-blue { left:16%; top:44%; width:51%; background:#e47225; transform:rotate(-25deg); } .stroke-teal { left:64%; top:52%; width:24%; background:#6b7280; transform:rotate(-9deg); } .stroke-purple { left:43%; top:49%; width:34%; background:#9ca3af; transform:rotate(36deg); } .stroke-pink { left:62%; top:22%; width:27%; background:#e2007a; transform:rotate(31deg); }
+    .stop { position:absolute; z-index:2; transform:translate(-50%,-50%); } .stop::after { position:absolute; top:5px; left:5px; width:10px; height:10px; border:3px solid #fff; border-radius:50%; background:var(--stop-color,#4f8cff); box-shadow:0 2px 9px rgba(25,48,75,.28); content:""; }
+    .stop span { display:block; margin:22px 0 0 10px; color:#41566e; font-size:11px; font-weight:700; white-space:nowrap; text-shadow:0 1px 0 rgba(255,255,255,.9); }
+    .s-township { left:15%; top:46%; --stop-color:#4f8cff; } .s-city { left:29%; top:34%; --stop-color:#4f8cff; } .s-durgachak { left:48%; top:43%; --stop-color:#ff6b4a; } .s-dock { left:70%; top:55%; --stop-color:#14b8a6; } .s-port { left:84%; top:73%; --stop-color:#22c55e; } .s-hospital { left:42%; top:21%; --stop-color:#4f8cff; } .s-chaitanyapur { left:60%; top:13%; --stop-color:#ec4899; } .s-kukrahati { left:84%; top:46%; --stop-color:#14b8a6; } .s-nandakumar { left:90%; top:54%; --stop-color:#a78bfa; }
+    .map-legend { position:absolute; right:32px; bottom:32px; z-index:3; display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; max-width:340px; } .legend-item { display:flex; align-items:center; gap:5px; border:1px solid var(--line); border-radius:9999px; color:var(--muted); background:#fff; padding:8px 10px; font-size:12px; } .legend-line { width:16px; height:4px; border-radius:9999px; background:var(--legend-color); }
+    .map-nav-hint { border:1px solid var(--line); border-radius:9999px; color:var(--muted); background:rgba(255,255,255,.94); padding:8px 11px; font-size:12px; pointer-events:none; }
+    .toast { position:fixed; right:22px; bottom:22px; z-index:10; display:none; border-radius:12px; color:#fff; background:#172640; padding:12px 15px; box-shadow:var(--shadow); } .toast.show { display:block; }
+    .admin-backdrop { position:fixed; inset:0; z-index:20; display:none; place-items:center; background:rgba(48,48,48,.38); padding:20px; }
+    .admin-backdrop.show { display:grid; }
+    .admin-dialog { width:min(760px,100%); max-height:90vh; overflow:auto; border-radius:8px; background:#fff; padding:32px; box-shadow:var(--shadow); }
+    .admin-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:18px; }
+    .admin-head h2 { margin:0 0 4px; font-size:24px; line-height:24px; font-weight:500; } .admin-head p { margin:0; color:var(--muted); }
+    .close-btn { width:32px; height:32px; border:1px solid var(--line); border-radius:50%; color:var(--muted); background:#fff; font-size:20px; }
+    .admin-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; } .admin-card { border:1px solid var(--line); border-radius:8px; background:#fff; padding:16px; }
+    .admin-card h3 { margin:0 0 4px; font-size:18px; line-height:27px; font-weight:500; } .admin-card > p { margin:0 0 14px; color:var(--muted); font-size:14px; }
+    .admin-field { display:grid; gap:6px; margin-top:10px; } .admin-field label { color:var(--muted); font-size:12px; font-weight:400; letter-spacing:0; text-transform:none; }
+    .admin-field input,.admin-field select,.admin-field textarea { padding:12px 16px; } .admin-field textarea { width:100%; min-height:96px; resize:vertical; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink); padding:12px 16px; font:inherit; } .admin-field textarea:focus { border-color:var(--blue); outline:0; box-shadow:0 0 0 3px rgba(226,0,122,.12); } .admin-submit { width:100%; margin-top:14px; border:0; border-radius:9999px; color:#fff; background:var(--blue); padding:12px 20px; font-weight:500; }
+    .admin-note { margin-top:16px; border-radius:8px; color:var(--muted); background:var(--paper); padding:12px 16px; font-size:14px; }
+    .admin-alert { display:none; margin-top:16px; border-radius:8px; padding:12px 16px; font-size:14px; } .admin-alert.show { display:block; } .admin-alert.success { color:var(--success); background:#f0fdf4; } .admin-alert.error { color:var(--error); background:#fef2f2; }
+    .account-backdrop { position:fixed; inset:0; z-index:25; display:none; place-items:center; background:rgba(48,48,48,.38); padding:20px; }
+    .account-backdrop.show { display:grid; }
+    .account-dialog { width:min(440px,100%); max-height:90vh; overflow:auto; border-radius:8px; background:#fff; padding:32px; box-shadow:var(--shadow); }
+    .account-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:20px; }
+    .account-brand { display:flex; align-items:center; gap:10px; } .account-brand .brand-mark { width:32px; height:32px; border-radius:8px; } .account-brand strong { display:block; font-size:17px; } .account-brand span { display:block; color:var(--muted); font-size:12px; }
+    .account-tabs { display:grid; grid-template-columns:1fr 1fr; gap:5px; padding:4px; border-radius:9999px; background:var(--paper); margin-bottom:20px; }
+    .account-tab { border:0; border-radius:9999px; color:var(--muted); background:transparent; padding:10px; font-weight:500; } .account-tab.active { color:#fff; background:var(--blue); box-shadow:none; }
+    .account-form { display:grid; gap:12px; } .account-form[hidden] { display:none; }
+    .account-field { display:grid; gap:6px; } .account-field label { color:var(--muted); font-size:12px; font-weight:400; letter-spacing:0; text-transform:none; } .account-field input,.account-field select { padding:12px 16px; }
+    .account-submit { border:0; border-radius:9999px; color:#fff; background:var(--blue); padding:12px 20px; font-weight:500; }
+    .account-helper { margin:0; color:var(--muted); font-size:14px; line-height:20px; } .account-helper strong { color:var(--ink); }
+    .account-message { display:none; border-radius:8px; padding:12px 16px; font-size:14px; } .account-message.show { display:block; } .account-message.success { color:var(--success); background:#f0fdf4; } .account-message.error { color:var(--error); background:#fef2f2; }
+    .profile-hero { display:flex; align-items:center; gap:12px; border-radius:8px; background:var(--paper); padding:16px; margin-bottom:16px; } .profile-avatar { display:grid; place-items:center; width:44px; height:44px; border-radius:50%; color:#fff; background:var(--blue); font-weight:700; font-size:17px; } .profile-hero strong { display:block; font-weight:500; } .profile-hero span { display:block; color:var(--muted); font-size:14px; }
+    .logout-btn { border:1px solid #fecaca; border-radius:9999px; color:var(--error); background:#fff; padding:12px 20px; font-weight:500; }
+    @media (max-width:900px) { .page-content { padding:28px 24px 42px; } .workspace { grid-template-columns:1fr; } .map-panel { min-height:460px; order:-1; } .sidebar { border-right:0; } .brand-subtitle { display:none; } .admin-grid,.dashboard-grid,.profile-page-grid { grid-template-columns:1fr; } .dashboard-stats { grid-template-columns:repeat(3,1fr); } }
+    @media (max-width:640px) { .app-shell,.app-shell.nav-collapsed { grid-template-columns:96px minmax(0,1fr); } .side-nav { padding:20px 12px; } .side-nav-brand-text { margin-left:8px; font-size:20px; letter-spacing:-1px; } .nav-links { width:72px; margin-top:100px; } .nav-item,.nav-toggle { width:72px; min-height:56px; padding:0 0 0 22px; } .nav-label { display:none; } .topbar { padding:0 15px; } .top-actions .top-btn,.top-actions .live-pill { display:none; } .page-content { padding:24px 16px 36px; } .page-heading { display:block; } .page-heading .primary-btn { margin-top:18px; } .dashboard-stats { grid-template-columns:1fr; } .sidebar { padding:18px 15px; } .map-copy { left:20px; } .map-copy h2 { font-size:22px; } }
   </style>
 </head>
 <body>
-  <header>
-    <h1>Local Route Finder</h1>
-    <p class="tag">Find the fastest, cheapest or simplest route across buses, ferries and walks.</p>
-  </header>
-  <main id="app">
-    <div class="start">
-      <p id="status">Starting...</p>
-      <p>Replace this with your UI. The core tasks are listed in README.md.</p>
-    </div>
-  </main>
+  <div class="app-shell nav-collapsed" id="appShell">
+    <nav class="side-nav" id="sideNav" aria-label="Primary navigation">
+      <div class="side-nav-brand-text"><strong>Next</strong>Stop</div>
+      <div class="nav-links">
+        <button class="nav-item active" type="button" data-page="home" data-tooltip="Home" aria-label="Home" title="Home" aria-current="page">
+          <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m3 10 9-7 9 7"></path><path d="M5 9.5V21h14V9.5"></path><path d="M9 21v-7h6v7"></path></svg></span><span class="nav-label">Home</span>
+        </button>
+        <button class="nav-item" type="button" data-page="dashboard" data-tooltip="Dashboard" aria-label="Dashboard" title="Dashboard">
+          <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect></svg></span><span class="nav-label">Dashboard</span>
+        </button>
+        <button class="nav-item" type="button" data-page="profile" data-tooltip="Profile" aria-label="Profile" title="Profile">
+          <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"></circle><path d="M4.5 21c.8-3.5 3.3-5.5 7.5-5.5s6.7 2 7.5 5.5"></path></svg></span><span class="nav-label">Profile</span>
+        </button>
+      </div>
+    </nav>
+    <header class="topbar">
+      <div class="top-actions"><div class="profile-wrap" hidden><button class="account-btn" id="authBtn" aria-label="Open account menu" title="Open account menu" aria-haspopup="menu" aria-expanded="false">N</button><div class="profile-menu" id="profileMenu" role="menu" hidden><div class="menu-user"><strong id="menuUserName">Guest mode</strong><span id="menuUserEmail">Plan routes without signing in</span></div><button class="menu-item" id="editProfileMenu" type="button">Edit profile</button><button class="menu-item" id="networkAdminMenu" type="button">Network admin</button><button class="menu-item danger" id="menuAuthAction" type="button">Sign in / Create profile</button></div></div></div>
+    </header>
+    <main class="workspace app-page" data-page-view="home">
+      <aside class="sidebar">
+        <div class="eyebrow">Local route finder</div><h1>Go further, with less guesswork.</h1><p class="intro">Compare time, fare and transfers across buses, ferries and shared autos.</p>
+        <section class="search-box">
+          <div class="field-row"><span class="field-dot"></span><div class="stop-picker"><input id="fromStop" type="text" role="combobox" aria-label="Starting point" aria-autocomplete="list" aria-expanded="false" aria-controls="fromStopOptions" autocomplete="off" placeholder="Choose starting point"><div class="stop-options" id="fromStopOptions" role="listbox" hidden></div></div><button class="swap-btn" id="swapBtn" type="button" title="Swap stops" aria-label="Swap starting point and destination">⇅</button></div>
+          <div class="field-row"><span class="field-dot destination"></span><div class="stop-picker"><input id="toStop" type="text" role="combobox" aria-label="Destination" aria-autocomplete="list" aria-expanded="false" aria-controls="toStopOptions" autocomplete="off" placeholder="Choose destination"><div class="stop-options" id="toStopOptions" role="listbox" hidden></div></div><span></span></div>
+          <div class="mode-tabs" role="tablist" aria-label="Route preference"><button class="mode-btn active" data-mode="time">Fastest</button><button class="mode-btn" data-mode="fare">Cheapest</button><button class="mode-btn" data-mode="transfers">Simplest</button></div>
+          <button class="primary-btn" id="findBtn">Find routes <span>→</span></button>
+        </section>
+        <div class="quick-row"><div class="section-title">Your options</div><button class="delay-btn" id="delayBtn">⚡ Simulate ferry delay</button></div>
+        <div class="alert" id="alert"></div><div id="routeList"><div class="empty-state"><strong>Where are you going?</strong>Select two stops to see your best options.</div></div>
+      </aside>
+      <section class="map-panel">
+        <div class="map-copy"><div class="map-badge"><span class="live-dot"></span>Haldia network</div></div>
+        <div class="map-controls" id="mapControls"><button class="map-control-btn" id="recenterMap" type="button" aria-label="Recenter route" title="Recenter route">⌖</button><button class="map-control-btn" id="fullscreenMap" type="button" aria-label="Open fullscreen map" title="Open fullscreen map" aria-pressed="false">⛶</button></div>
+        <div id="leafletMap" aria-label="Interactive Haldia transport map"></div>
+        <div class="map-canvas" aria-label="Illustrated Haldia transport network">
+          <div class="route-stroke stroke-red"></div><div class="route-stroke stroke-blue"></div><div class="route-stroke stroke-teal"></div><div class="route-stroke stroke-purple"></div><div class="route-stroke stroke-pink"></div>
+          <div class="stop s-township"><span>Township</span></div><div class="stop s-city"><span>City Centre</span></div><div class="stop s-durgachak"><span>Durgachak</span></div><div class="stop s-dock"><span>Dock</span></div><div class="stop s-port"><span>Port</span></div><div class="stop s-hospital"><span>Hospital</span></div><div class="stop s-chaitanyapur"><span>Chaitanyapur</span></div><div class="stop s-kukrahati"><span>Ferry Ghat</span></div><div class="stop s-nandakumar"><span>Nandakumar</span></div>
+        </div>
+        <div class="map-legend"><div class="legend-item"><span class="legend-line" style="--legend-color:#e2007a"></span>Bus</div><div class="legend-item"><span class="legend-line" style="--legend-color:#e47225"></span>Ferry</div><div class="legend-item"><span class="legend-line" style="--legend-color:#6b7280"></span>Shared auto</div><div class="map-nav-hint">Drag to move · Pinch / scroll to zoom</div></div>
+      </section>
+    </main>
+    <section class="app-page page-dashboard" data-page-view="dashboard" hidden>
+      <div class="page-content">
+        <div class="page-heading"><div><div class="eyebrow">Dashboard</div><h1>Network admin</h1><p>Add local stops and connect them with a route. Changes become available in the Home route finder immediately.</p></div></div>
+        <div class="admin-grid">
+          <form class="admin-card" id="stopForm">
+            <h3>Add a stop</h3><p>Stops become searchable immediately.</p>
+            <div class="admin-field"><label for="newStopName">Stop name</label><input id="newStopName" required placeholder="e.g. Haldia College"></div>
+            <div class="admin-field"><label for="newStopNeighborhood">Neighborhood</label><input id="newStopNeighborhood" placeholder="e.g. Central Haldia"></div>
+            <button class="admin-submit" type="submit">Add stop</button>
+          </form>
+          <form class="admin-card" id="routeForm">
+            <h3>Add a route</h3><p>Use existing stop names in travel order.</p>
+            <div class="admin-field"><label for="newRouteName">Route name</label><input id="newRouteName" required placeholder="e.g. North Connector"></div>
+            <div class="admin-field"><label for="newRouteMode">Transport</label><select id="newRouteMode"><option value="bus">Bus</option><option value="ferry">Ferry</option><option value="auto">Shared auto</option></select></div>
+            <div class="admin-field"><label for="newRouteStops">Stops in order</label><textarea id="newRouteStops" required placeholder="HIT Main Gate, Hatiberia&#10;Haldia Township&#10;Nandakumar"></textarea></div>
+            <div class="admin-field"><label for="newRouteMinutes">Minutes per leg</label><input id="newRouteMinutes" type="number" min="1" value="8"></div>
+            <div class="admin-field"><label for="newRouteFare">Fare per leg (₹)</label><input id="newRouteFare" type="number" min="0" value="10"></div>
+            <button class="admin-submit" type="submit">Add route</button>
+          </form>
+        </div>
+        <div class="admin-note">Tip: add a stop first, then enter one exact stop name per line. Commas inside stop names are supported.</div>
+        <div class="admin-alert" id="adminAlert"></div>
+      </div>
+    </section>
+    <section class="app-page page-profile" data-page-view="profile" hidden>
+      <div class="page-content">
+        <div class="page-heading"><div><div class="eyebrow">Your account</div><h1>Your profile</h1><p>Personalize how NextStop helps you move around the network.</p></div></div>
+        <div class="profile-page-grid">
+          <article class="profile-page-card" id="profilePageGuest"><div class="profile-page-user"><div class="profile-page-avatar">N</div><div><h2>Plan with a profile</h2><p>Save your home city and route preference.</p></div></div><p>Create a profile to keep your planning preferences ready wherever you use NextStop.</p><button class="primary-btn" id="profilePageAuth" type="button">Sign in / Create profile</button></article>
+          <article class="profile-page-card" id="profilePageMember" hidden><div class="profile-page-user"><div class="profile-page-avatar" id="profilePageAvatar">N</div><div><h2 id="profilePageName">Welcome back</h2><p id="profilePageEmail"></p></div></div><h3>Travel preference</h3><p id="profilePagePreference">Fastest arrival</p><button class="secondary-btn" id="profilePageEdit" type="button">Edit profile</button><button class="nav-signout" id="navSignout" type="button" hidden>Sign out</button></article>
+          <article class="profile-page-card"><h3>Why create a profile?</h3><p>NextStop can remember the way you like to travel while keeping route search available in guest mode.</p><ul class="dashboard-checklist"><li>Your preferred home city</li><li>Fastest, cheapest or simplest routes</li><li>A focused account menu</li></ul></article>
+        </div>
+      </div>
+    </section>
+  </div>
+  <div class="account-backdrop" id="accountPanel" aria-hidden="true">
+    <section class="account-dialog" role="dialog" aria-modal="true" aria-labelledby="accountTitle">
+      <div class="account-head"><div class="account-brand"><div class="brand-mark logo-mark"><img src="/assets/nextstop-logo.png?v=1" alt="NextStop logo"></div><div><strong id="accountTitle">Your NextStop account</strong><span>Save your preferences and keep planning anywhere.</span></div></div><button class="close-btn" id="closeAccount" aria-label="Close account panel">×</button></div>
+      <div id="guestView">
+        <div class="account-tabs"><button class="account-tab active" data-account-view="login">Sign in</button><button class="account-tab" data-account-view="register">Create profile</button></div>
+        <form class="account-form" id="loginForm">
+          <div class="account-field"><label for="loginEmail">Email address</label><input id="loginEmail" type="email" autocomplete="email" required placeholder="you@example.com"></div>
+          <div class="account-field"><label for="loginPassword">Password</label><input id="loginPassword" type="password" autocomplete="current-password" required placeholder="Your password"></div>
+          <button class="account-submit" type="submit">Sign in to NextStop</button><p class="account-helper">Your route searches stay available without an account. Sign in to personalize your experience.</p>
+        </form>
+        <form class="account-form" id="registerForm" hidden>
+          <div class="account-field"><label for="registerName">Full name</label><input id="registerName" autocomplete="name" required placeholder="Your name"></div>
+          <div class="account-field"><label for="registerEmail">Email address</label><input id="registerEmail" type="email" autocomplete="email" required placeholder="you@example.com"></div>
+          <div class="account-field"><label for="registerPassword">Password</label><input id="registerPassword" type="password" autocomplete="new-password" minlength="8" required placeholder="At least 8 characters"></div>
+          <div class="account-field"><label for="registerCity">Home city</label><input id="registerCity" value="Haldia" autocomplete="address-level2" required></div>
+          <div class="account-field"><label for="registerPreference">I usually optimize for</label><select id="registerPreference"><option value="time">Fastest arrival</option><option value="fare">Lowest fare</option><option value="transfers">Fewest transfers</option></select></div>
+          <button class="account-submit" type="submit">Create my profile</button><p class="account-helper">By creating a profile, you agree to use NextStop responsibly. Your password is stored as a secure hash.</p>
+        </form>
+      </div>
+      <div id="profileView" hidden>
+        <div class="profile-hero"><div class="profile-avatar" id="profileAvatar">N</div><div><strong id="profileWelcome">Welcome back</strong><span id="profileEmail"></span></div></div>
+        <form class="account-form" id="profileForm">
+          <div class="account-field"><label for="profileName">Full name</label><input id="profileName" autocomplete="name" required></div>
+          <div class="account-field"><label for="profileCity">Home city</label><input id="profileCity" autocomplete="address-level2" required></div>
+          <div class="account-field"><label for="profilePreference">Route preference</label><select id="profilePreference"><option value="time">Fastest arrival</option><option value="fare">Lowest fare</option><option value="transfers">Fewest transfers</option></select></div>
+          <button class="account-submit" type="submit">Save profile</button><button class="logout-btn" id="logoutBtn" type="button">Sign out</button>
+        </form>
+      </div>
+      <div class="account-message" id="accountMessage"></div>
+    </section>
+  </div>
+  <div class="toast" id="toast"></div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
-    fetch("/api/health")
-      .then((r) => r.json())
-      .then(() => { document.getElementById("status").textContent = "Backend connected."; })
-      .catch(() => { document.getElementById("status").textContent = "Backend not reachable - is app.py running?"; });
+    const state = { mode:"time", delayed:false, stops:[] }; const fromSelect = document.getElementById("fromStop"); const toSelect = document.getElementById("toStop"); const routeList = document.getElementById("routeList"); const alertBox = document.getElementById("alert"); const toast = document.getElementById("toast"); const adminAlert = document.getElementById("adminAlert"); const mapPanel = document.querySelector(".map-panel");
+    let latestPayload = null;
+    let latestRouteRequest = 0;
+    let activeStopOption = -1;
+    const appShell = document.getElementById("appShell"); const navItems = Array.from(document.querySelectorAll(".nav-item")); const pageTitles = { home:"Home", dashboard:"Dashboard", profile:"Profile" };
+    let dashboardRequest = null;
+    function renderProfilePage() {
+      const guest = document.getElementById("profilePageGuest"); const member = document.getElementById("profilePageMember"); if (!guest || !member) return;
+      guest.hidden = Boolean(currentUser); member.hidden = !currentUser;
+      if (!currentUser) return;
+      document.getElementById("profilePageAvatar").textContent = initials(currentUser.full_name); document.getElementById("profilePageName").textContent = currentUser.full_name; document.getElementById("profilePageEmail").textContent = currentUser.email;
+      document.getElementById("profilePagePreference").textContent = { time:"Fastest arrival", fare:"Lowest fare", transfers:"Fewest transfers" }[currentUser.travel_preference] || "Fastest arrival";
+    }
+    function loadDashboard() { return Promise.resolve(); }
+    function setPage(page, options = {}) {
+      const nextPage = pageTitles[page] ? page : "home";
+      document.querySelectorAll("[data-page-view]").forEach((view) => { view.hidden = view.dataset.pageView !== nextPage; });
+      navItems.forEach((item) => { const active = item.dataset.page === nextPage; item.classList.toggle("active", active); if (active) item.setAttribute("aria-current", "page"); else item.removeAttribute("aria-current"); });
+      document.title = `${pageTitles[nextPage]} · NextStop`;
+      if (options.replace) history.replaceState({ page:nextPage }, "", `#${nextPage}`); else if (options.push !== false) history.pushState({ page:nextPage }, "", `#${nextPage}`);
+      window.scrollTo({ top:0, behavior:"instant" });
+      if (nextPage === "dashboard") loadDashboard();
+      if (nextPage === "profile") renderProfilePage();
+      if (nextPage === "home" && leafletMap) setTimeout(() => leafletMap.invalidateSize(), 50);
+    }
+    navItems.forEach((item) => item.addEventListener("click", () => setPage(item.dataset.page)));
+    document.querySelectorAll("[data-go-page]").forEach((button) => button.addEventListener("click", () => setPage(button.dataset.goPage)));
+    window.addEventListener("popstate", (event) => setPage(event.state?.page || window.location.hash.slice(1) || "home", { push:false }));
+    let leafletMap = null; let stopLayer = null; let routeLayer = null; let routeRenderToken = 0; let currentMapBounds = null; let selectedRouteIndex = 0;
+    const escapeHtml = (value) => String(value).replace(/[&<>'"]/g, (char) => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[char])); const safeRouteColor = (value) => /^#[0-9a-fA-F]{6}$/.test(String(value || "")) ? value : "#6b7280"; const modeLabel = { bus:"Bus", ferry:"Ferry", auto:"Shared auto", walk:"Walk" }; const icon = { bus:"▰", ferry:"≈", auto:"◆", walk:"•" };
+    function showToast(message) { toast.textContent = message; toast.classList.add("show"); setTimeout(() => toast.classList.remove("show"), 2600); }
+    function renderStopOptions(input, list, query = "") {
+      const normalizedQuery = query.trim().toLocaleLowerCase();
+      const matches = state.stops.filter((stop) => !normalizedQuery || `${stop.name} ${stop.neighborhood || ""}`.toLocaleLowerCase().includes(normalizedQuery));
+      list.innerHTML = matches.length ? matches.map((stop, index) => `<div class="stop-option" id="${list.id}-option-${index}" role="option" aria-selected="false" data-stop-name="${escapeHtml(stop.name)}"><strong>${escapeHtml(stop.name)}</strong><span>${escapeHtml(stop.neighborhood || "Local stop")}</span></div>`).join("") : '<div class="stop-empty" role="status">No matching stops</div>';
+      activeStopOption = -1; input.removeAttribute("aria-activedescendant"); input.setAttribute("aria-expanded", "true"); list.hidden = false;
+    }
+    function closeStopOptions(input, list) { list.hidden = true; input.setAttribute("aria-expanded", "false"); input.removeAttribute("aria-activedescendant"); activeStopOption = -1; }
+    function chooseStop(input, list, name) { input.value = name; closeStopOptions(input, list); }
+    function setActiveStopOption(input, list, index) {
+      const options = Array.from(list.querySelectorAll('[role="option"]'));
+      if (!options.length) return;
+      activeStopOption = (index + options.length) % options.length;
+      options.forEach((option, optionIndex) => { const active = optionIndex === activeStopOption; option.classList.toggle("active", active); option.setAttribute("aria-selected", String(active)); });
+      input.setAttribute("aria-activedescendant", options[activeStopOption].id); options[activeStopOption].scrollIntoView({ block:"nearest" });
+    }
+    function bindStopPicker(input, list) {
+      input.addEventListener("focus", () => { if (input === fromSelect) closeStopOptions(toSelect, toStopOptions); else closeStopOptions(fromSelect, fromStopOptions); input.select(); renderStopOptions(input, list); });
+      input.addEventListener("input", () => renderStopOptions(input, list, input.value));
+      input.addEventListener("keydown", (event) => {
+        const options = list.querySelectorAll('[role="option"]');
+        if (event.key === "ArrowDown") { event.preventDefault(); if (list.hidden) renderStopOptions(input, list, input.value); else setActiveStopOption(input, list, activeStopOption + 1); }
+        else if (event.key === "ArrowUp") { event.preventDefault(); if (list.hidden) renderStopOptions(input, list, input.value); else setActiveStopOption(input, list, activeStopOption < 0 ? options.length - 1 : activeStopOption - 1); }
+        else if (event.key === "Enter" && !list.hidden) { const active = list.querySelector('[role="option"].active'); const exact = state.stops.find((stop) => stop.name.toLocaleLowerCase() === input.value.trim().toLocaleLowerCase()); const selected = active?.dataset.stopName || exact?.name; if (selected) { event.preventDefault(); chooseStop(input, list, selected); } }
+        else if (event.key === "Escape" && !list.hidden) { event.preventDefault(); closeStopOptions(input, list); }
+      });
+      list.addEventListener("pointerdown", (event) => { const option = event.target.closest('[role="option"]'); if (!option) return; event.preventDefault(); chooseStop(input, list, option.dataset.stopName); });
+    }
+    const fromStopOptions = document.getElementById("fromStopOptions"); const toStopOptions = document.getElementById("toStopOptions");
+    bindStopPicker(fromSelect, fromStopOptions); bindStopPicker(toSelect, toStopOptions);
+    document.addEventListener("pointerdown", (event) => { if (!event.target.closest(".stop-picker")) { closeStopOptions(fromSelect, fromStopOptions); closeStopOptions(toSelect, toStopOptions); } });
+    function renderStops() {
+      const previousFrom = fromSelect.value || "Haldia Township"; const previousTo = toSelect.value || "Nandakumar";
+      fromSelect.value = state.stops.some((stop) => stop.name === previousFrom) ? previousFrom : "Haldia Township"; toSelect.value = state.stops.some((stop) => stop.name === previousTo) ? previousTo : "Nandakumar";
+    }
+    function metrics(route) { return `<div class="route-metrics"><span class="route-time">${route.total_minutes} min</span><span class="route-fare">₹${route.total_fare}</span><span class="route-transfer">${route.transfers} transfer${route.transfers === 1 ? "" : "s"}</span></div>`; }
+    function departureMarkup(schedule) {
+      if (!schedule) return "";
+      const wait = Number.isFinite(Number(schedule.wait_minutes)) ? Number(schedule.wait_minutes) : null;
+      const waitLabel = wait === null ? "No service" : schedule.status !== "Running" ? escapeHtml(schedule.status || "Later") : wait <= 0 ? "Now" : `in ${wait} min`;
+      const laterDepartures = (schedule.departures || []).slice(1).map((departure) => `<span>${escapeHtml(departure.label)}</span>`).join("");
+      return `<div class="departure-strip" data-departure-at="${escapeHtml(schedule.next_departure_at || "")}"><div class="departure-icon">◷</div><div class="departure-copy"><strong>Next departure · ${escapeHtml(schedule.next_departure_label || "No service")}</strong><span>${escapeHtml(schedule.route || "Local service")} · ${escapeHtml(schedule.status || "Running")} · every ${escapeHtml(schedule.headway_minutes || "—")} min</span></div><div class="departure-wait">${waitLabel}</div></div>${laterDepartures ? `<div class="departure-upcoming"><span>Later</span>${laterDepartures}</div>` : ""}`;
+    }
+    function routeCard(route, index) {
+      const chips = route.segments.filter((segment, i, arr) => i === 0 || segment.route !== arr[i - 1].route).map((segment) => `<span class="mode-chip"><span class="mode-dot" style="--chip-color:${safeRouteColor(segment.color)}"></span>${escapeHtml(segment.route)}</span>`).join("");
+      const timeline = route.segments.map((segment) => `<div class="timeline-row"><span class="timeline-dot" style="background:${safeRouteColor(segment.color)}"></span><div class="timeline-copy"><strong>${escapeHtml(segment.from)} → ${escapeHtml(segment.to)}</strong><span>${icon[segment.mode] || "•"} ${modeLabel[segment.mode] || escapeHtml(segment.mode)} · ${segment.minutes} min</span></div><span class="timeline-time">₹${segment.fare}</span></div>`).join("");
+      return `<article class="route-card ${index === 0 ? "recommended" : ""}" data-card="${index}">${index === 0 ? '<div class="recommended-label">Recommended</div>' : ""}<div class="route-card-head"><div><h3 class="route-title">${index === 0 ? "Best match" : `Alternative ${index}`}</h3><div class="route-subtitle">${route.routes.map(escapeHtml).join(" → ")}</div></div><span class="route-subtitle">${route.stops.length} Stops</span></div>${metrics(route)}${departureMarkup(route.schedule)}<div class="route-line">${chips}</div><button class="view-btn">View journey details ↓</button><div class="details"><div class="timeline">${timeline}</div></div></article>`;
+    }
+    function initLeafletMap() {
+      if (typeof L === "undefined") { document.getElementById("leafletMap").style.display = "none"; document.querySelector(".map-canvas").style.display = "block"; document.getElementById("mapControls").hidden = true; return; }
+      mapPanel.classList.add("leaflet-active"); leafletMap = L.map("leafletMap", { zoomControl:false, attributionControl:true, dragging:true, touchZoom:true, scrollWheelZoom:true, doubleClickZoom:true, keyboard:true, boxZoom:true, inertia:true, inertiaDeceleration:2800, zoomSnap:.5, zoomDelta:.5, wheelPxPerZoomLevel:80, preferCanvas:true, worldCopyJump:true }).setView([22.03, 88.10], 12); L.control.zoom({ position:"bottomright" }).addTo(leafletMap); L.control.scale({ imperial:false, position:"bottomleft" }).addTo(leafletMap);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom:19, attribution:"&copy; OpenStreetMap contributors" }).addTo(leafletMap);
+      stopLayer = L.layerGroup().addTo(leafletMap); routeLayer = L.layerGroup().addTo(leafletMap);
+      document.getElementById("recenterMap").addEventListener("click", fitMapToRoute); document.getElementById("fullscreenMap").addEventListener("click", toggleMapFullscreen); document.addEventListener("keydown", (event) => { if (event.key === "Escape" && mapPanel.classList.contains("map-fullscreen")) setMapFullscreen(false); });
+    }
+    function renderMapStops() {
+      if (!leafletMap || !stopLayer) return; stopLayer.clearLayers();
+      state.stops.filter((stop) => stop.lat !== null && stop.lng !== null && Number.isFinite(Number(stop.lat)) && Number.isFinite(Number(stop.lng))).forEach((stop) => {
+        const marker = L.circleMarker([Number(stop.lat), Number(stop.lng)], { radius:5, color:"#fff", weight:2, fillColor:"#e2007a", fillOpacity:.95 });
+        const stopModes = String(stop.modes || "bus,auto").split(",").map((mode) => modeLabel[mode.trim()] || mode.trim()).filter(Boolean).join(" · ");
+        marker.bindTooltip(escapeHtml(stop.name), { direction:"top", offset:[0,-5] }); marker.bindPopup(`<strong>${escapeHtml(stop.name)}</strong><br>${escapeHtml(stop.neighborhood || "Haldia network")}<br><span>${escapeHtml(stopModes)}</span>`); marker.addTo(stopLayer);
+      });
+    }
+    async function roadGeometry(coords) {
+      const waypoints = coords.map(([lat, lng]) => `${lng},${lat}`).join(";");
+      try {
+        const response = await fetch(`https://router.project-osrm.org/route/v1/driving/${waypoints}?overview=full&geometries=geojson&steps=false`);
+        const payload = await response.json(); const geometry = payload.routes && payload.routes[0] && payload.routes[0].geometry;
+        if (!response.ok || payload.code !== "Ok" || !geometry || !Array.isArray(geometry.coordinates)) return null;
+        return geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+      } catch (error) { return null; }
+    }
+    function drawRouteLayer(route, index, lineCoords, selected, group) {
+      group.clearLayers(); const color = selected ? "#e2007a" : index === 1 ? "#e47225" : "#6b7280";
+      L.polyline(lineCoords, { color:"#fff", weight:selected ? 11 : 7, opacity:selected ? .9 : .55, lineCap:"round", lineJoin:"round" }).addTo(group);
+      const line = L.polyline(lineCoords, { color, weight:selected ? 6 : 3, opacity:selected ? 1 : .6, dashArray:selected ? null : "7 8", lineCap:"round", lineJoin:"round" }).addTo(group);
+      line.bindPopup(`<strong>${escapeHtml(route.routes.join(" → "))}</strong><br>${route.total_minutes} min · ₹${route.total_fare} · ${route.transfers} transfer${route.transfers === 1 ? "" : "s"}`); line.on("click", () => selectRoute(index));
+      if (selected) { L.circleMarker(lineCoords[0], { radius:9, color:"#fff", weight:3, fillColor:"#16a34a", fillOpacity:1 }).bindTooltip(`Start · ${escapeHtml(route.stops[0])}`, { direction:"top" }).addTo(group); L.circleMarker(lineCoords[lineCoords.length - 1], { radius:9, color:"#fff", weight:3, fillColor:"#e47225", fillOpacity:1 }).bindTooltip(`Destination · ${escapeHtml(route.stops[route.stops.length - 1])}`, { direction:"top" }).addTo(group); }
+    }
+    function drawMapRoutes(routes, selectedIndex = 0) {
+      if (!leafletMap || !routeLayer) return; const renderToken = ++routeRenderToken; routeLayer.clearLayers(); const stopByName = new Map(state.stops.map((stop) => [stop.name, stop])); const allCoords = [];
+      routes.forEach((route, index) => {
+        const stopCoords = route.stops.map((name) => stopByName.get(name)).filter((stop) => stop && stop.lat !== null && stop.lng !== null && Number.isFinite(Number(stop.lat)) && Number.isFinite(Number(stop.lng))).map((stop) => [Number(stop.lat), Number(stop.lng)]); if (stopCoords.length < 2) return; allCoords.push(...stopCoords);
+        const selected = index === selectedIndex; const group = L.layerGroup().addTo(routeLayer); drawRouteLayer(route, index, stopCoords, selected, group);
+        roadGeometry(stopCoords).then((geometry) => { if (geometry && renderToken === routeRenderToken) { drawRouteLayer(route, index, geometry, selected, group); if (selected) { currentMapBounds = L.latLngBounds(geometry); leafletMap.fitBounds(currentMapBounds, { padding:[55,55], maxZoom:14, animate:true }); } } });
+      });
+      const selectedCoords = routes[selectedIndex] && routes[selectedIndex].stops.map((name) => stopByName.get(name)).filter((stop) => stop && stop.lat !== null && stop.lng !== null && Number.isFinite(Number(stop.lat)) && Number.isFinite(Number(stop.lng))).map((stop) => [Number(stop.lat), Number(stop.lng)]); const boundsCoords = selectedCoords && selectedCoords.length > 1 ? selectedCoords : allCoords;
+      if (boundsCoords.length) { currentMapBounds = L.latLngBounds(boundsCoords); leafletMap.fitBounds(currentMapBounds, { padding:[55,55], maxZoom:14, animate:false }); }
+    }
+    function fitMapToRoute() { if (leafletMap && currentMapBounds && currentMapBounds.isValid()) leafletMap.fitBounds(currentMapBounds, { padding:[55,55], maxZoom:14, animate:true }); }
+    function setMapFullscreen(isFullscreen) { mapPanel.classList.toggle("map-fullscreen", isFullscreen); document.body.classList.toggle("map-is-fullscreen", isFullscreen); const button = document.getElementById("fullscreenMap"); button.setAttribute("aria-pressed", String(isFullscreen)); button.setAttribute("aria-label", isFullscreen ? "Close fullscreen map" : "Open fullscreen map"); button.title = isFullscreen ? "Close fullscreen map" : "Open fullscreen map"; button.textContent = isFullscreen ? "×" : "⛶"; setTimeout(() => { if (leafletMap) { leafletMap.invalidateSize({ pan:false }); fitMapToRoute(); } }, 220); }
+    function toggleMapFullscreen() { setMapFullscreen(!mapPanel.classList.contains("map-fullscreen")); }
+    function selectRoute(index) { if (!latestPayload) return; selectedRouteIndex = index; const cards = routeList.querySelectorAll(".route-card"); cards.forEach((card, cardIndex) => card.classList.toggle("selected", cardIndex === index)); drawMapRoutes(latestPayload.routes, index); }
+    function renderRoutes(payload) { latestPayload = payload; routeList.innerHTML = payload.routes.map(routeCard).join(""); selectRoute(0); routeList.querySelectorAll(".route-card").forEach((card) => card.addEventListener("click", () => selectRoute(Number(card.dataset.card)))); }
+    function refreshDepartureCountdown() {
+      if (!latestPayload) return;
+      let shouldReload = false;
+      const now = Date.now();
+      routeList.querySelectorAll(".route-card").forEach((card) => {
+        const route = latestPayload.routes[Number(card.dataset.card)]; const schedule = route && route.schedule; if (!schedule) return;
+        const next = (schedule.departures || []).find((departure) => new Date(departure.at).getTime() >= now); if (!next) { shouldReload = true; return; }
+        const wait = Math.max(0, Math.ceil((new Date(next.at).getTime() - now) / 60000));
+        const departureText = card.querySelector(".departure-copy strong"); const waitText = card.querySelector(".departure-wait");
+        if (departureText) departureText.textContent = `Next departure · ${next.label}`; if (waitText) waitText.textContent = wait <= 0 ? "Now" : `in ${wait} min`;
+      });
+      if (shouldReload) findRoutes({ toast:false });
+    }
+    function clearRoutePresentation() { latestPayload = null; selectedRouteIndex = 0; routeRenderToken += 1; currentMapBounds = null; if (routeLayer) routeLayer.clearLayers(); }
+    async function findRoutes(options = {}) {
+      const requestId = ++latestRouteRequest; alertBox.classList.remove("show"); const validStops = new Set(state.stops.map((stop) => stop.name)); if (!validStops.has(fromSelect.value) || !validStops.has(toSelect.value)) { clearRoutePresentation(); routeList.innerHTML = '<div class="empty-state"><strong>Choose two stops</strong>Select both starting point and destination from the suggestions.</div>'; alertBox.textContent = "Choose both stops from the list."; alertBox.classList.add("show"); return; } const params = new URLSearchParams({ from:fromSelect.value, to:toSelect.value, mode:state.mode }); if (state.delayed) params.set("delay_route", "Harbour Link");
+      try { const response = await fetch(`/api/route?${params}`); const payload = await response.json(); if (requestId !== latestRouteRequest) return; if (!response.ok) throw new Error(payload.error || "No route found"); renderRoutes(payload); if (options.toast !== false) showToast(state.delayed ? "Routes updated around the ferry delay" : `${payload.routes.length} route options found`); }
+      catch (error) { if (requestId !== latestRouteRequest) return; clearRoutePresentation(); const noRoute = /no route found/i.test(error.message); routeList.innerHTML = `<div class="empty-state"><strong>${noRoute ? "No route found" : "Could not plan this trip"}</strong>${noRoute ? "Try another pair of stops or switch your preference." : "Check your connection and try again."}</div>`; alertBox.textContent = error.message; alertBox.classList.add("show"); }
+    }
+    document.querySelectorAll(".mode-btn").forEach((button) => button.addEventListener("click", () => { document.querySelectorAll(".mode-btn").forEach((item) => item.classList.remove("active")); button.classList.add("active"); state.mode = button.dataset.mode; findRoutes(); }));
+    function setAdminAlert(message, kind) { adminAlert.textContent = message; adminAlert.className = `admin-alert show ${kind}`; }
+    function openAdmin() { closeProfileMenu(); setPage("dashboard"); document.getElementById("newStopName").focus(); }
+    function closeAdmin() { adminAlert.className = "admin-alert"; }
+    async function sendJson(url, method, payload) { const response = await fetch(url, { method, headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) }); const body = await response.json(); if (!response.ok) throw new Error(body.error || "Could not save this change"); return body; }
+    async function postJson(url, payload) { return sendJson(url, "POST", payload); }
+    document.getElementById("findBtn").addEventListener("click", findRoutes); document.getElementById("swapBtn").addEventListener("click", () => { const value = fromSelect.value; fromSelect.value = toSelect.value; toSelect.value = value; findRoutes(); });
+    document.getElementById("delayBtn").addEventListener("click", () => { state.delayed = !state.delayed; const button = document.getElementById("delayBtn"); button.classList.toggle("active", state.delayed); button.textContent = state.delayed ? "✓ Ferry delay active" : "⚡ Simulate ferry delay"; findRoutes(); });
+    document.getElementById("stopForm").addEventListener("submit", async (event) => { event.preventDefault(); try { await postJson("/api/stops", { name:document.getElementById("newStopName").value, neighborhood:document.getElementById("newStopNeighborhood").value }); const response = await fetch("/api/stops"); state.stops = (await response.json()).stops; renderStops(); event.target.reset(); setAdminAlert("Stop added and available in search.", "success"); } catch (error) { setAdminAlert(error.message, "error"); } });
+    document.getElementById("routeForm").addEventListener("submit", async (event) => { event.preventDefault(); const stops = document.getElementById("newRouteStops").value.split(/\r?\n/).map((value) => value.trim()).filter(Boolean); try { await postJson("/api/routes", { name:document.getElementById("newRouteName").value, mode:document.getElementById("newRouteMode").value, stops, minutes:Number(document.getElementById("newRouteMinutes").value), fare:Number(document.getElementById("newRouteFare").value) }); event.target.reset(); document.getElementById("newRouteMinutes").value = 8; document.getElementById("newRouteFare").value = 10; setAdminAlert("Route added with bidirectional connections.", "success"); findRoutes({toast:false}); } catch (error) { setAdminAlert(error.message, "error"); } });
+    let currentUser = null; const accountPanel = document.getElementById("accountPanel"); const guestView = document.getElementById("guestView"); const profileView = document.getElementById("profileView"); const accountMessage = document.getElementById("accountMessage"); const authBtn = document.getElementById("authBtn"); const profileMenu = document.getElementById("profileMenu"); const menuUserName = document.getElementById("menuUserName"); const menuUserEmail = document.getElementById("menuUserEmail"); const editProfileMenu = document.getElementById("editProfileMenu"); const networkAdminMenu = document.getElementById("networkAdminMenu"); const menuAuthAction = document.getElementById("menuAuthAction");
+    function initials(name) { return String(name || "N").split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase(); }
+    function setAccountMessage(message, kind) { accountMessage.textContent = message || ""; accountMessage.className = message ? `account-message show ${kind}` : "account-message"; }
+    function setAccountView(view) {
+      const isProfile = view === "profile"; guestView.hidden = isProfile; profileView.hidden = !isProfile;
+      document.querySelectorAll(".account-tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.accountView === view));
+      document.getElementById("loginForm").hidden = view !== "login"; document.getElementById("registerForm").hidden = view !== "register"; setAccountMessage("");
+      if (isProfile && currentUser) { document.getElementById("profileName").value = currentUser.full_name; document.getElementById("profileCity").value = currentUser.home_city; document.getElementById("profilePreference").value = currentUser.travel_preference; document.getElementById("profileWelcome").textContent = `Welcome, ${currentUser.full_name.split(" ")[0]}`; document.getElementById("profileEmail").textContent = currentUser.email; document.getElementById("profileAvatar").textContent = initials(currentUser.full_name); }
+    }
+    function syncAccountButton() { authBtn.textContent = currentUser ? initials(currentUser.full_name) : "N"; authBtn.title = "Open account menu"; authBtn.setAttribute("aria-label", authBtn.title); menuUserName.textContent = currentUser ? currentUser.full_name : "Guest mode"; menuUserEmail.textContent = currentUser ? currentUser.email : "Plan routes without signing in"; editProfileMenu.hidden = !currentUser; menuAuthAction.querySelector("span").textContent = currentUser ? "Sign out" : "Sign in / Create profile"; document.getElementById("navSignout").hidden = !currentUser; renderProfilePage(); }
+    function closeProfileMenu() { profileMenu.hidden = true; authBtn.setAttribute("aria-expanded", "false"); }
+    function toggleProfileMenu() { profileMenu.hidden = !profileMenu.hidden; authBtn.setAttribute("aria-expanded", String(!profileMenu.hidden)); }
+    function openAccount() { closeProfileMenu(); accountPanel.classList.add("show"); accountPanel.setAttribute("aria-hidden", "false"); setAccountView(currentUser ? "profile" : "login"); }
+    function closeAccount() { accountPanel.classList.remove("show"); accountPanel.setAttribute("aria-hidden", "true"); setAccountMessage(""); }
+    document.querySelectorAll(".account-tab").forEach((tab) => tab.addEventListener("click", () => setAccountView(tab.dataset.accountView)));
+    authBtn.addEventListener("click", (event) => { event.stopPropagation(); toggleProfileMenu(); }); document.getElementById("closeAccount").addEventListener("click", closeAccount); accountPanel.addEventListener("click", (event) => { if (event.target === accountPanel) closeAccount(); }); document.addEventListener("click", (event) => { if (!event.target.closest(".profile-wrap")) closeProfileMenu(); });
+    editProfileMenu.addEventListener("click", openAccount); networkAdminMenu.addEventListener("click", openAdmin); menuAuthAction.addEventListener("click", () => { if (currentUser) signOut(); else openAccount(); });
+    document.getElementById("profilePageAuth").addEventListener("click", openAccount); document.getElementById("profilePageEdit").addEventListener("click", openAccount);
+    document.getElementById("loginForm").addEventListener("submit", async (event) => { event.preventDefault(); try { const body = await postJson("/api/auth/login", { email:document.getElementById("loginEmail").value, password:document.getElementById("loginPassword").value }); currentUser = body.user; syncAccountButton(); setAccountView("profile"); setAccountMessage("Signed in. Your profile is ready.", "success"); } catch (error) { setAccountMessage(error.message, "error"); } });
+    document.getElementById("registerForm").addEventListener("submit", async (event) => { event.preventDefault(); try { const body = await postJson("/api/auth/register", { full_name:document.getElementById("registerName").value, email:document.getElementById("registerEmail").value, password:document.getElementById("registerPassword").value, home_city:document.getElementById("registerCity").value, travel_preference:document.getElementById("registerPreference").value }); currentUser = body.user; syncAccountButton(); setAccountView("profile"); setAccountMessage("Profile created. Welcome to NextStop.", "success"); } catch (error) { setAccountMessage(error.message, "error"); } });
+    document.getElementById("profileForm").addEventListener("submit", async (event) => { event.preventDefault(); try { const body = await sendJson("/api/profile", "PUT", { full_name:document.getElementById("profileName").value, home_city:document.getElementById("profileCity").value, travel_preference:document.getElementById("profilePreference").value }); currentUser = body.user; syncAccountButton(); closeAccount(); showToast("Profile updated successfully"); } catch (error) { setAccountMessage(error.message, "error"); } });
+    async function signOut() { await postJson("/api/auth/logout", {}); currentUser = null; syncAccountButton(); closeProfileMenu(); closeAccount(); showToast("You have been signed out"); }
+    document.getElementById("logoutBtn").addEventListener("click", signOut);
+    document.getElementById("navSignout").addEventListener("click", signOut);
+    const initialPage = pageTitles[window.location.hash.slice(1)] ? window.location.hash.slice(1) : "home"; setPage(initialPage, { replace:true });
+    fetch("/api/auth/me").then((response) => response.json()).then((payload) => { if (payload.authenticated) { currentUser = payload.user; syncAccountButton(); } }).catch(() => {});
+    initLeafletMap();
+    fetch("/api/stops").then((response) => response.json()).then((payload) => { state.stops = payload.stops; renderStops(); renderMapStops(); findRoutes(); }).catch(() => { alertBox.textContent = "Backend not reachable. Start app.py and try again."; alertBox.classList.add("show"); });
+    setInterval(refreshDepartureCountdown, 30000);
   </script>
 </body>
 </html>
